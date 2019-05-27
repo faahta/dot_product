@@ -209,7 +209,7 @@ main(int argc, char *argv[]){
 	printf("Dot product as computed by me: %d\n",dot_prod);
 	printf("Dot product as computed by my niggas: %d\n",th_data.sum);
 	if(dot_prod != th_data.su)
-		printf("funny but true! I'd rather be 80 year old me than 20 year old you\n");
+		printf("my nigga u failed me, funny but true! I'd rather be 80 year old me than 20 year old you\n");
 	pthread_exit((void *) pthread_self());
 
 	return 0;
