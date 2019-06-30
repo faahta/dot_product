@@ -1,3 +1,4 @@
+/*MULTI-THREADED PROGRAM TO COMPUTE DOT PRODUCT OF TWO VECTORS*/
 #include<stdio.h>
 #include<stdlib.h>
 #include<stdbool.h>
@@ -10,7 +11,7 @@
 
 #define FILE_A "a.bin"
 #define FILE_B "b.bin"
-
+#define NLOOP 3
 struct vector{
 	int num;
 }vector_t;
@@ -24,6 +25,7 @@ typedef struct thread{
 	bool *multiplied;
 	sem_t *S1,*S2;
 	pthread_mutex_t lock;
+	
 }Thread_t;
 
 Thread_t th_data;
@@ -32,6 +34,7 @@ struct vector a, b;
 int T, N;
 sem_t *S;
 FILE *fd1, *fd2;
+int j = 0;/*loop variable*/
 
 
 Element_t 
@@ -76,12 +79,12 @@ init(){
 	th_data.S1 = (sem_t *)malloc(sizeof(sem_t));
 	sem_init(th_data.S1, 0, 1);
 	th_data.S2 = (sem_t *)malloc(sizeof(sem_t));
-	sem_init(th_data.S2, 0, 1);
+	sem_init(th_data.S2, 0, 0);
 	
 	pthread_mutex_init(&th_data.lock, NULL);
 	th_data.vec_size = 0;
-	th_data.sum = 0;
 	th_data.count = 0;
+	th_data.sum = 0;
 }
 void 
 setup(){
@@ -90,40 +93,48 @@ setup(){
 	for(i=0; i<th_data.vec_size; i++)
 		th_data.multiplied[i] = 0;
 }
-
+/**************************************************THREADS START ROUTINE************************************************/
+/*********************************************************************************************************************/
 static void *
 thread_function(void *arg){
 	pthread_detach(pthread_self());
 	int *id = (int *)arg;	
-	sem_wait(S);
-	printf("thread %d\n",*id);
-	int index;
-	srand(time(NULL));
-	
-	while(th_data.count < th_data.vec_size){
-		/*select index to multiply*/
-		sleep(1);
-		pthread_mutex_lock(&th_data.lock);
-		index = (rand() % th_data.vec_size);
-		Element_t elem;
-		if(!th_data.multiplied[index]){
-			elem = get_element(index);
-			printf("thread %d index = %d a = %d b = %d\n",*id, index, elem.a,elem.b);
-			th_data.sum += (elem.a * elem.b);
-			/*mark index as multiplied*/
-			th_data.multiplied[index] = 1;
-			th_data.count++;
-		}  	
-		pthread_mutex_unlock(&th_data.lock);
-	} 
-	sem_post(th_data.S2);
-	printf("thread %d exiting\n",*id);
+	while(1){
+		if(j >= NLOOP)
+			break;
+		sem_wait(S);
+		int index;
+		srand(time(NULL));
+		while(th_data.count < th_data.vec_size){
+			/*select index to multiply*/
+			sleep(1);
+			pthread_mutex_lock(&th_data.lock);
+				index = (rand() % th_data.vec_size);
+				Element_t elem;
+				if(!th_data.multiplied[index]){
+					elem = get_element(index);
+					printf("thread %d index = %d a = %d b = %d\n",*id, index, elem.a,elem.b);
+					th_data.sum += (elem.a * elem.b);
+					/*mark index as multiplied*/
+					th_data.multiplied[index] = 1;
+					th_data.count++;
+				}  	
+			pthread_mutex_unlock(&th_data.lock);
+		} 
+		
+		sem_post(th_data.S2);
+	}
+	printf("THREAD %d EXITING\n",*id);
 	return NULL;
 }
-
+/*********************************************************************************************************************/
+/*********************************************************************************************************************/
 int 
 main(int argc, char *argv[]){
-
+	if(argc!=3){
+		printf("usage: %s <T> <N>\n", argv[0]);
+		exit(1);
+	}
 	T = atoi(argv[1]);
 	N = atoi(argv[2]);
 	init();
@@ -140,16 +151,16 @@ main(int argc, char *argv[]){
 		pthread_create(&th[i],NULL,thread_function, (void *)pi);
 	}
 	
-	int j=0;
+	
 	int *vecA, *vecB;
-	while(j < 3){
+	while(j < NLOOP){
 		printf("=====================================================LOOP %d=========================================================\n",j);
 		sleep(1);
 		int k, r, x;
 		/*generate r between(1-N)*/
 		srand(time(NULL));
 		r = ((rand() % N) + 1);
-		th_data.vec_size += r;
+		th_data.vec_size = r;
 		printf("r = %d\n",th_data.vec_size);
 		vecA = (int *)malloc(r * sizeof(int));
 		vecB = (int *)malloc(r * sizeof(int));
@@ -182,34 +193,41 @@ main(int argc, char *argv[]){
 			fwrite(&b, sizeof(struct vector),1,fd2);
 		}
 		fclose(fd1); fclose(fd2);	
+		
+		/*check written binary file*/
+		read_binary_file();  
+		/*mark all indexes as NOT multiplied*/
+		setup();
+		
+		/*notify all threads that the two vectors are ready*/
+		for(i = 0; i < T; i++)
+			sem_post(S);
+			
+		/*WAIT for their computation and print results*/
+		int dot_prod=0;
+		for(i=0; i<T; i++)
+			sem_wait(th_data.S2);
+		
+		th_data.count = 0;	
+		fd1 = fopen(FILE_A, "rb");
+		fd2 = fopen(FILE_B, "rb");
+		for (i=0;i<th_data.vec_size; i++) {
+			fread(&a,sizeof(struct vector),1,fd1);
+			fread(&b,sizeof(struct vector),1,fd2);
+			dot_prod += (a.num * b.num);
+		}
+		fclose(fd1); fclose(fd2);
+		
+		printf("Dot product as computed by me: %d\n",dot_prod);
+		printf("Dot product as computed by my niggas: %d\n",th_data.sum);
+		th_data.sum = 0;
+		remove(FILE_A); remove(FILE_B);
 		j++;
 	}
-	/*check written binary file*/
-	read_binary_file();
-	 /*mark all indexes as NOT multiplied*/
-	setup();
-	/*notify all threads that the two vectors are ready*/
-	for(i = 0; i < T; i++)
-		sem_post(S);
-		
-	/*wait for their computation and print results*/
-	int dot_prod=0;
+
+	
 	for(i=0; i<T; i++)
-		sem_wait(th_data.S2);
-		
-	fd1 = fopen(FILE_A, "rb");
-	fd2 = fopen(FILE_B, "rb");
-	for (i=0;i<th_data.vec_size; i++) {
-		fread(&a,sizeof(struct vector),1,fd1);
-		fread(&b,sizeof(struct vector),1,fd2);
-		dot_prod += (a.num * b.num);
-	}
-	fclose(fd1); fclose(fd2);
-	
-	printf("Dot product as computed by me: %d\n",dot_prod);
-	printf("Dot product as computed by my niggas: %d\n",th_data.sum);
-	
-	pthread_exit((void *) pthread_self());
+		pthread_join(th[i], NULL);
 
 	return 0;
 }
