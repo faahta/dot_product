@@ -1,3 +1,4 @@
+/*MULTI-THREADED PROGRAM TO COMPUTE DOT PRODUCT OF TWO VECTORS*/
 #include<stdio.h>
 #include<stdlib.h>
 #include<stdbool.h>
