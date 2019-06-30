@@ -224,10 +224,9 @@ main(int argc, char *argv[]){
 		remove(FILE_A); remove(FILE_B);
 		j++;
 	}
-
 	
 	for(i=0; i<T; i++)
 		pthread_join(th[i], NULL);
-
+		
 	return 0;
 }
